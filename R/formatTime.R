@@ -130,7 +130,7 @@ formatTime = function(data, timeCol = NULL, ts_indices = NULL, scan_indices = NU
 
   # return
   return(list(
-    timestamp = timestamp,
+    timestamp = as.POSIXct(timestamp),
     n_gaps_over_30min = n_gaps_over_30min,
     duplicated_timestamps = duplicated_timestamps,
     no_sequential_timestamps = no_sequential_timestamps,

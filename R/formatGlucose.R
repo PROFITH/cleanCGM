@@ -80,7 +80,17 @@ formatGlucose = function(data, glucCol = NULL,
     glucose = data[, glucCol]
   }
 
-  # --- 1. REFACTOR: Handle Decimals BEFORE numeric conversion ---
+
+
+  # --- 1. REFACTOR: Language-agnostic "Low" Detection ---
+  # Identifies strings like "Nivel bajo", "Low", "Glucose Low" etc.
+  current_ldl = if(grepl("mmol/l", glucCol, ignore.case = TRUE)) 2.2 else 39
+  is_low = grep(low_pattern, glucose, ignore.case = TRUE)
+  if (length(is_low) > 0) {
+    glucose[is_low] = as.character(current_ldl)
+  }
+
+  # --- 2. REFACTOR: Handle Decimals BEFORE numeric conversion ---
   # Check if character and contains common non-dot separators
   defaultSep = unlist(options("OutDec"))
   fileSep = gsub('[[:digit:]]+', '', glucose[which(!is.na(glucose))])
@@ -92,14 +102,6 @@ formatGlucose = function(data, glucCol = NULL,
       }
     }
   }
-
-  # --- 2. REFACTOR: Language-agnostic "Low" Detection ---
-  # Identifies strings like "Nivel bajo", "Low", "Glucose Low" etc.
-  toImpute = grep(low_pattern, glucose, ignore.case = TRUE)
-  if (length(toImpute) > 0) {
-    glucose[toImpute] = NA
-  }
-
 
   # --- 3. REFACTOR: Safer Header Removal ---
   # Instead of hardcoding 250/70, we look for typical Libre header patterns
