@@ -204,7 +204,7 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
                main = id)
         } else {
           lines(x = timestamp[select], y = glucose[select],
-               type = "l", col = colors[fi])
+                type = "l", col = colors[fi])
         }
         # check overlapping in files
         t0 = c(t0, as.POSIXct(min(timestamp[select])))
