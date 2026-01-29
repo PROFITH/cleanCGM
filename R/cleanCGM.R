@@ -50,8 +50,9 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
                     timeCol = NULL, glucCol = NULL, typeCol = NULL,
                     suffix = "",
                     verbose = TRUE) {
-  if (is.null(datadir) | !dir.exists(outputdir)) stop("Please, specify the datadir.")
-  if (is.null(outputdir) | !dir.exists(outputdir)) stop("Please, specify the outputdir.")
+  # do directories exist?
+  if (is.null(datadir)) stop("Please, specify the datadir.")
+  if (is.null(outputdir)) stop("Please, specify the outputdir.")
 
   # print in console...
   if (verbose) {
