@@ -51,7 +51,7 @@
 #' @export
 cleanCGM = function(datadir = NULL, outputdir = NULL,
                     timeCol = NULL, glucCol = NULL, typeCol = NULL,
-                    suffix = "",
+                    prefix = "", suffix = "",
                     verbose = TRUE) {
   # do directories exist?
   if (is.null(datadir)) stop("Please, specify the datadir.")
@@ -161,7 +161,7 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
       colors = c("#D81B60", "#1E88E5", "#FFC107", "#004D40")
       doublefile = doublefile + 1
       if (doublefile == 1) {
-        pdffilepath = file.path(outputdir, paste0("quality_check_visualization",suffix,".pdf"))
+        pdffilepath = file.path(outputdir, paste0("quality_check_visualization_",prefix,"_",suffix,".pdf"))
         pdf(pdffilepath, width = 10, height = 7)
       }
       xlim = range(timestamp[ts])
@@ -225,11 +225,12 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
     tsDir = file.path(outputdir, "time series")
     if (!dir.exists(scansDir)) dir.create(scansDir)
     if (!dir.exists(tsDir)) dir.create(tsDir)
+    if (!is.null(prefix)) id = paste0(prefix, id)
     if (!is.null(suffix)) id = paste0(id, suffix)
     save(SCANS, file = file.path(scansDir, paste0(id, ".RData")))
     save(TS, file = file.path(tsDir, paste0(id, ".RData")))
   }
-  qcfilepath = file.path(outputdir, paste0("quality_checks",suffix,".csv"))
+  qcfilepath = file.path(outputdir, paste0("quality_checks_",prefix,"_",suffix,".csv"))
   write.csv(QC, file = qcfilepath, row.names = F, na = "")
   if (doublefile > 0) dev.off()
 }
