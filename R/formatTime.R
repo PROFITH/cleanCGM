@@ -30,7 +30,8 @@
 #' time series (historical) data.
 #' @param scan_indices Integer vector. Row indices corresponding to manual
 #' scan events.
-#'
+#' @param tz Character. The timezone of the data (defaults to system timezone).
+#' #'
 #' @section Quality Control Metrics:
 #' The function doesn't just return time; it evaluates data integrity:
 #' \itemize{
@@ -47,59 +48,75 @@
 #' \item{no_sequential_timestamps}{Logical indicating if time-order violations occurred.}
 #' \item{ts_indices}{The original or updated time series indices.}
 #'
-#' @importFrom lubridate force_tz
+#' @importFrom lubridate force_tz parse_date_time
 #' @export
-formatTime = function(data, timeCol = NULL, ts_indices = NULL, scan_indices = NULL) {
-  # initialize out objects
+formatTime = function(data, timeCol = NULL, ts_indices = NULL, scan_indices = NULL,
+                      tz = Sys.timezone()) {
+
+  # initialize output objects
   duplicated_timestamps = no_sequential_timestamps = FALSE
   n_gaps_over_30min = 0
   ts_indices_to_remove = NULL
+
+  # 1. --- Column Discovery ---
   if (is.null(timeCol)) {
-    # identify time column
-    timeCol = grep("time|tiempo|date|fecha|hora|temporal", colnames(data),
+    time_patterns = "time|tiempo|date|fecha|hora|temporal"
+    timeCol = grep(time_patterns, colnames(data),
                    ignore.case = TRUE, value = TRUE)
+
     if (length(timeCol) > 1) {
-      # keep the one formatted as POSIX
-      timeCol_class = rep(NA, length(timeCol))
-      for (timeCol_i in 1:length(timeCol)) {
-        timeCol_class[timeCol_i] = class(data[, timeCol[timeCol_i]])[1]
+      # Use vectorized sapply to check classes
+      classes = sapply(data[, timeCol, drop = FALSE], function(x) class(x)[1])
+      if (any(classes == "POSIXct")) {
+        timeCol = timeCol[which(classes == "POSIXct")[1]]
+      } else {
+        # Fallback to the column with most unique entries
+        unique_counts = sapply(data[, timeCol, drop = FALSE],
+                               function(x) length(unique(x)))
+        timeCol = timeCol[which.max(unique_counts)]
       }
-      if (any(timeCol_class == "POSIXct")) {
-        timeCol = timeCol[which(timeCol_class == "POSIXct")]
-      }
-    }
-    if (length(timeCol) > 1) {
-      # keep the one with more distinct values
-      timeCol_lengths = rep(NA, length(timeCol))
-      for (timeCol_i in 1:length(timeCol)) {
-        timeCol_lengths[timeCol_i] = length(table(data[, timeCol[timeCol_i]]))
-      }
-      timeCol = timeCol[which.max(timeCol_lengths)]
     }
   }
-  if (is.numeric(data[, timeCol])) {
-    # read as UTC as device does not detect DSTs (UTC does not include DSTs)
-    ts_utc = as.POSIXct(data[, timeCol]*86400, origin = "1899-12-30", tz = "UTC")
-    # calculate time increment along recordings to derive new timestamp
-    time_increment = as.numeric(diff(ts_utc, units = "secs"))
-    # new timestamp = t0 (in local timezone) + time increments
-    t0 = lubridate::force_tz(ts_utc[1], tzone = Sys.timezone())
-    timestamp = c(t0, t0 + cumsum(time_increment))
-  } else if (is.character(data[, timeCol])) {
-    ts_utc = strptime(data[, timeCol], format = "%d/%m/%Y %H:%M", tz = "UTC")
-    if (any(is.na(ts_utc))) {
-      ts_utc = strptime(data[, timeCol], format = "%Y/%m/%d %H:%M", tz = "UTC")
-    }
-    if (any(is.na(ts_utc))) {
-      ts_utc = strptime(data[, timeCol], format = "%d-%m-%Y %H:%M", tz = "UTC")
-    }
-    # calculate time increment along recordings to derive new timestamp
-    time_increment = as.numeric(diff(ts_utc, units = "secs"))
-    # new timestamp = t0 (in local timezone) + time increments
-    t0 = lubridate::force_tz(ts_utc[1], tzone = Sys.timezone())
-    timestamp = c(t0, t0 + cumsum(time_increment))
-  } else if ("POSIXct" %in% class(data[, timeCol])) {
-    timestamp = data[, timeCol]
+  raw_time = data[[timeCol]]
+
+  # 2. --- Parsing ---
+  if (is.numeric(raw_time)) {
+    # Excel origin (1899-12-30). Convert to UTC first to keep increments stable.
+    ts_utc = as.POSIXct(raw_time * 86400, origin = "1899-12-30", tz = "UTC")
+
+  } else if (is.character(raw_time)) {
+    # REFACTOR: Use lubridate for multi-format international support
+    # Handles DMY, YMD, and MDY automatically
+    ts_utc = lubridate::parse_date_time(raw_time,
+                                        orders = c("dmy HM", "ymd HM", "mdy HM", "dmy HMS"),
+                                        tz = "UTC")
+
+    if (all(is.na(ts_utc))) stop("Could not parse date format. Check timeCol.")
+
+  } else if (inherits(raw_time, "POSIXct")) {
+    ts_utc = lubridate::force_tz(raw_time, tzone = "UTC")
+  }
+
+  # 3. --- The DST-Proof Timeline Reconstruction ---
+  # We calculate increments in UTC (no DST jumps)
+  # and then apply those increments to a local-timezone start point.
+  time_increment = as.numeric(diff(ts_utc, units = "secs"))
+  t0 = lubridate::force_tz(ts_utc[1], tzone = tz)
+  timestamp = t0 + c(0, cumsum(time_increment))
+
+  # 4. --- Rounding & Quality Checks ---
+  # Rounding to "mins" can create duplicates if records are seconds apart.
+  # We round specifically for comparison, but keep high precision if needed.
+  rounded_ts = round(timestamp, "mins")
+
+  if (!is.null(ts_indices)) {
+    # Calculate increments between indices specifically
+    ts_only = rounded_ts[ts_indices]
+    time_increments_min = as.numeric(diff(ts_only, units = "mins"))
+
+    n_gaps_over_30min = sum(time_increments_min > 30, na.rm = TRUE)
+    duplicated_timestamps = any(duplicated(ts_only))
+    no_sequential_timestamps = any(time_increments_min < 0, na.rm = TRUE)
   }
 
   # round to minutes
@@ -112,9 +129,11 @@ formatTime = function(data, timeCol = NULL, ts_indices = NULL, scan_indices = NU
   if (any(time_increments < 0)) no_sequential_timestamps = TRUE
 
   # return
-  return(list(timestamp = timestamp,
-              n_gaps_over_30min = n_gaps_over_30min,
-              duplicated_timestamps = duplicated_timestamps,
-              no_sequential_timestamps = no_sequential_timestamps,
-              ts_indices = ts_indices))
+  return(list(
+    timestamp = timestamp,
+    n_gaps_over_30min = n_gaps_over_30min,
+    duplicated_timestamps = duplicated_timestamps,
+    no_sequential_timestamps = no_sequential_timestamps,
+    ts_indices = ts_indices
+  ))
 }

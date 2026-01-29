@@ -1,7 +1,7 @@
 Package: cleanCGM
 Type: Package
 Title: Clean CGM Signal
-Version: 0.1.0
+Version: 1.0.0
 Author: Jairo H. Migueles <jairo@jhmigueles.com>
 Maintainer: Jairo H. Migueles <jairo@jhmigueles.com>
 Description: Set of functions to clean CGM signal as collected in the 
@@ -9,7 +9,13 @@ Description: Set of functions to clean CGM signal as collected in the
   xlsx format with various file structures and missing values expected.
   The output is RData files including a data frame with two columns, i.e., 
   timestamp and glucose in mg/dL.
+Imports:
+    data.table,
+    lifecycle,
+    lubridate,
+    openxlsx
 License: Apache License (>= 2)
 Encoding: UTF-8
 LazyData: true
-RoxygenNote: 7.3.2
+RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)

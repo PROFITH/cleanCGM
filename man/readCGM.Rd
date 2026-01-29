@@ -2,16 +2,53 @@
 % Please edit documentation in R/readCGM.R
 \name{readCGM}
 \alias{readCGM}
-\title{Reads file with CGM data either in .txt or .xlsx format}
+\title{Read and Consolidate Multiple CGM Data Files}
 \usage{
-readCGM(files)
+readCGM(files, col_map = NULL)
 }
 \arguments{
-\item{file}{Character. Path to file with CGM data (accepts txt and xlsx formats).}
+\item{files}{Character vector. Path(s) to the CGM files. If multiple files
+are provided, they are assumed to belong to the same subject and will be
+merged.}
+
+\item{col_map}{List. A mapping of internal keys to actual column names in the file.}
 }
 \value{
-Data frame with CGM data.
+A combined data frame containing the data from all input files,
+with two additional columns:
+\itemize{
+\item \code{file_nr}: Integer indicating the chronological order of the file.
+\item \code{filename}: The name of the source file for that specific row.
+}
 }
 \description{
-Reads file with CGM data either in .txt or .xlsx format
+\code{readCGM} imports Continuous Glucose Monitoring data from various file
+formats (.txt, .xlsx, .csv). It handles multi-file imports for a single
+subject, automatically ordering them chronologically and assigning session
+identifiers.
 }
+\details{
+The function includes sophisticated error-handling for specific sensor export
+bugs:
+\itemize{
+\item \strong{Column Repair}: For \code{.txt} files, it detects if glucose values and
+timestamps have shifted into the wrong columns (a common artifact in some
+FreeStyle Libre exports) and realigns them.
+\item \strong{Excel Compatibility}: Automatically skips metadata headers in
+\code{.xlsx} files by starting the read at row 3.
+\item \strong{Chronological Merging}: If multiple files are provided, the
+function parses the first timestamp of each, sorts them, and assigns a
+\code{file_nr} attribute to track the session sequence.
+}
+}
+\section{Data Cleaning Steps}{
+
+\itemize{
+\item \strong{NA Removal}: Automatically drops rows with missing IDs.
+\item \strong{Name Cleaning}: Standardizes column names by replacing dots (\code{.})
+with spaces to maintain consistency across different file formats.
+\item \strong{Timestamp Standardization}: In cases of malformed rows, it
+re-formats dates to \verb{\%d/\%m/\%Y \%H:\%M}.
+}
+}
+

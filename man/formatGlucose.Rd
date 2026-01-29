@@ -2,18 +2,50 @@
 % Please edit documentation in R/formatGlucose.R
 \name{formatGlucose}
 \alias{formatGlucose}
-\title{Formats glucose in a consistent manner}
+\title{Extract and Clean Glucose Values from CGM Data}
 \usage{
-formatGlucose(data, glucCol = NULL)
+formatGlucose(data, glucCol = NULL, low_pattern = "bajo|low|faible|niedrig")
 }
 \arguments{
-\item{data}{data frame read by readCGM}
+\item{data}{A data frame containing raw CGM data (typically the output of \code{readCGM}).}
 
-\item{glucCol}{Character. Name of the column with the glucose information}
+\item{glucCol}{Character. Optional. The name of the column containing glucose data.
+If NULL (default), the function performs automatic detection.}
+
+\item{low_pattern}{Character. Regex pattern to identify values below sensor range.}
 }
 \value{
-Glucose formatted
+A numeric vector of glucose values in mg/dL.
 }
 \description{
-Formats glucose in a consistent manner
+\code{formatGlucose} processes raw glucose data by automatically identifying
+glucose columns, handling international decimal separators, converting units,
+and imputing specific sensor-error strings.
 }
+\details{
+The function employs an intelligent discovery logic for glucose data:
+\itemize{
+\item \strong{Column Discovery}: If \code{glucCol} is NULL, it searches for columns
+containing "glucos" (case-insensitive).
+\item \strong{Ambiguity Resolution}: If multiple columns are found, it selects
+the one with the highest variability (more than 2 unique values) to avoid
+static metadata columns.
+\item \strong{Localization}: Detects and replaces non-default decimal separators
+(e.g., converting European commas to dots).
+\item \strong{Unit Conversion}: Automatically converts values from mmol/L to
+mg/dL if "mmol/l" is detected in the column header using the formula:
+\deqn{mg/dL = mmol/L \times 18.0182}
+}
+}
+\section{Data Cleaning & Imputation}{
+
+\itemize{
+\item \strong{Header Removal}: Automatically detects and removes 8-row metadata
+headers common in specific sensor exports (e.g., rows containing range limits 250/70).
+\item \strong{"Nivel bajo" Handling}: Replaces the Spanish string "Nivel bajo"
+(often indicating values below sensor range) with \code{NA}.
+\item \strong{Missing Values}: Uses Last Observation Carried Forward (LOCF)
+via \code{data.table::nafill} to fill remaining \code{NA} values.
+}
+}
+

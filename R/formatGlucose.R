@@ -25,6 +25,7 @@
 #' @param data A data frame containing raw CGM data (typically the output of `readCGM`).
 #' @param glucCol Character. Optional. The name of the column containing glucose data.
 #' If NULL (default), the function performs automatic detection.
+#' @param low_pattern Character. Regex pattern to identify values below sensor range.
 #'
 #' @section Data Cleaning & Imputation:
 #' \itemize{

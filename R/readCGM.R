@@ -20,11 +20,10 @@
 #'   `file_nr` attribute to track the session sequence.
 #' }
 #'
-#'
-#'
 #' @param files Character vector. Path(s) to the CGM files. If multiple files
 #' are provided, they are assumed to belong to the same subject and will be
 #' merged.
+#' @param col_map List. A mapping of internal keys to actual column names in the file.
 #'
 #' @section Data Cleaning Steps:
 #' \itemize{
@@ -44,72 +43,101 @@
 #'
 #' @importFrom openxlsx read.xlsx
 #' @importFrom data.table fread
+#' @importFrom utils read.delim
 #' @export
-readCGM = function(files) {
+readCGM = function(files, col_map = NULL) {
+
+  # 1. --- Column Mapping System ---
+  # Default map follows the Spanish FreeStyle Libre format but allows English/others
+  if (is.null(col_map)) {
+    col_map = list(
+      id = "ID",
+      type = "Tipo.de.registro|Record.Type",
+      hist_gluc = "Historico.glucosa|Historic.Glucose",
+      scan_gluc = "Glucosa.leida|Scan.Glucose",
+      time = "Hora|Time"
+    )
+  }
 
   # loop through files to load data -------
   datasets = list()
-  length(datasets) = length(files)
   for (i in 1:length(files)) {
 
-    # format of files
-    format = unique(tools::file_ext(files))
-    if (format == "txt") {
-      datasets[[i]] = read.delim(files[i], sep = '\t', header = TRUE)
-      NAs = which(is.na(datasets[[i]]$ID))
-      if (length(NAs) > 0) datasets[[i]] = datasets[[i]][-NAs,]
+    # Identify file extension
+    ext = tolower(gsub(".*\\.", "", files[i]))
 
-      # reformat dataset?
-      NAs = which(is.na(datasets[[i]]$Tipo.de.registro) & is.na(datasets[[i]]$Histórico.glucosa..mg.dL.) &
-                    is.na(datasets[[i]]$Glucosa.leída..mg.dL.))
-      if (length(NAs) > 0) {
-        datasets[[i]]$Tipo.de.registro[NAs] = 0
-        datasets[[i]]$Histórico.glucosa..mg.dL.[NAs] = datasets[[i]]$Hora[NAs]
-        datasets[[i]]$Hora[NAs] = datasets[[i]]$ID[NAs]
-        datasets[[i]]$ID[NAs] = 0
-        # fix timestamp format in scan rows
-        tsRevise = 1:(NAs[1] - 1)
-        newTS = strptime(datasets[[i]]$Hora[tsRevise], format = "%Y/%m/%d %H:%M")
-        newTS = format(newTS, format = "%d/%m/%Y %H:%M")
-        datasets[[i]]$Hora[tsRevise] = newTS
-        # remove extra rows if any
-        extra_rows = which(datasets[[i]]$Hora == "" & datasets[[i]]$Histórico.glucosa..mg.dL. == "")
-        if (length(extra_rows) > 0) datasets[[i]] = datasets[[i]][-extra_rows,]
+    # 2. --- Data Loading ---
+    if (ext == "txt") {
+      df = read.delim(files[i], sep = '\t', header = TRUE, check.names = TRUE)
+      colnames(df) = iconv(colnames(df), from = "UTF-8", to = "ASCII//TRANSLIT")
+      datasets[[i]] = df
+
+      # Detect actual column names using the map
+      id_col = grep(col_map$id, colnames(datasets[[i]]), ignore.case = TRUE, value = TRUE)[1]
+      type_col = grep(col_map$type, colnames(datasets[[i]]), ignore.case = TRUE, value = TRUE)[1]
+      hist_col = grep(col_map$hist_gluc, colnames(datasets[[i]]), ignore.case = TRUE, value = TRUE)[1]
+      time_col = grep(col_map$time, colnames(datasets[[i]]), ignore.case = TRUE, value = TRUE)[1]
+
+      # Clean rows with missing IDs
+      if (!is.na(id_col)) {
+        datasets[[i]] = datasets[[i]][!is.na(datasets[[i]][[id_col]]), ]
       }
 
+      # 3. --- REFACTOR: Column Repair ---
+      # If specialized columns are missing but data exists in shifted positions
+      if (!is.na(type_col) && !is.na(hist_col)) {
+        NAs = which(is.na(datasets[[i]][[type_col]]) &
+                      is.na(datasets[[i]][[hist_col]]))
 
-    } else if (format == "xlsx") {
+        if (length(NAs) > 0) {
+          # Repair logic: shift columns back to expected positions
+          datasets[[i]][NAs, type_col] = 0
+          datasets[[i]][NAs, hist_col] = datasets[[i]][NAs, time_col]
+          datasets[[i]][NAs, time_col] = datasets[[i]][NAs, id_col]
+          datasets[[i]][NAs, id_col] = 0
+        }
+      }
+
+    } else if (ext == "xlsx") {
       datasets[[i]] = openxlsx::read.xlsx(files[i], sheet = 1, startRow = 3)
-      # colnames similar to .txt files
       colnames(datasets[[i]]) = gsub(".", " ", colnames(datasets[[i]]), fixed = TRUE)
-    } else if (format == "csv") {
+      colnames(datasets[[i]]) = iconv(colnames(datasets[[i]]), from = "UTF-8", to = "ASCII//TRANSLIT")
+
+    } else if (ext == "csv") {
       datasets[[i]] = suppressWarnings(data.table::fread(files[i],
                                                          data.table = FALSE,
                                                          verbose = FALSE))
       # colnames similar to .txt files
       colnames(datasets[[i]]) = gsub(".", " ", colnames(datasets[[i]]), fixed = TRUE)
+      colnames(datasets[[i]]) = iconv(colnames(datasets[[i]]), from = "UTF-8", to = "ASCII//TRANSLIT")
     } else {
-      stop(paste0("Format ", format, " not supported at the moment"))
+      stop(paste0("Format ", ext, " not supported at the moment"))
     }
   }
-  # indices for rbinding
-  inds = 1
+
+  # 4. --- REFACTOR: Column Sorting Logic ---
   if (length(datasets) > 1) {
-    t0 = c()
-    for (i in 1:length(datasets)) {
-      t0 = c(t0,as.POSIXct(formatTime(head(datasets[[i]], 1))$timestamp))
-    }
-    inds = order(t0)
-    for (i in 1:length(datasets)) {
-      datasets[[i]]$file_nr = inds[i]
-      datasets[[i]]$filename = basename(files[i])
+    # Start time detection: Only process the first row per file
+    start_times = sapply(datasets, function(df) {
+      # Use the first row only to avoid processing millions of rows here
+      first_row = df[1, , drop = FALSE]
+      as.numeric(formatTime(first_row)$timestamp)
+    })
+
+    # Correct indexing: 'inds' is the chronological sequence of files
+    inds = order(start_times)
+    datasets = datasets[inds] # Reorder the list itself
+
+    # Assign file_nr based on their final position in the merged set
+    for (j in 1:length(datasets)) {
+      datasets[[j]]$file_nr = j
     }
   } else {
     datasets[[1]]$file_nr = 1
-    datasets[[1]]$filename = basename(files[i])
   }
-  # rbind datasets
-  DAT = do.call("rbind", datasets[inds])
+
+  # 5. --- Final Merge ---
+  DAT = do.call("rbind", datasets)
 
   return(DAT)
 }

@@ -2,22 +2,68 @@
 % Please edit documentation in R/formatTime.R
 \name{formatTime}
 \alias{formatTime}
-\title{Formats timestamp in a consistent manner}
+\title{Normalize and Repair CGM Timestamps}
 \usage{
-formatTime(data, timeCol = NULL, ts_indices = NULL, scan_indices = NULL)
+formatTime(
+  data,
+  timeCol = NULL,
+  ts_indices = NULL,
+  scan_indices = NULL,
+  tz = Sys.timezone()
+)
 }
 \arguments{
-\item{data}{data frame read by readCGM}
+\item{data}{A data frame containing raw CGM data.}
 
-\item{timeCol}{Character. Name of the column with the timestamp.}
+\item{timeCol}{Character. Optional. The name of the timestamp column.
+If NULL, the function performs automatic detection.}
 
-\item{ts_indices}{Rows in data containing the actual time series.}
+\item{ts_indices}{Integer vector. Row indices corresponding to continuous
+time series (historical) data.}
 
-\item{scan_indices}{Rows in data containing scans information.}
+\item{scan_indices}{Integer vector. Row indices corresponding to manual
+scan events.}
+
+\item{tz}{Character. The timezone of the data (defaults to system timezone).
+#'}
 }
 \value{
-timestamp formatted
+A named list containing:
+\item{timestamp}{A \code{POSIXct} vector of normalized date-times.}
+\item{n_gaps_over_30min}{Integer count of data gaps > 30 mins.}
+\item{duplicated_timestamps}{Logical indicating if duplicates were found.}
+\item{no_sequential_timestamps}{Logical indicating if time-order violations occurred.}
+\item{ts_indices}{The original or updated time series indices.}
 }
 \description{
-Formats timestamp in a consistent manner
+\code{formatTime} converts raw date/time columns into standardized \code{POSIXct}
+objects. It is specifically designed to handle common CGM sensor issues such
+as inconsistent date formats, numeric Excel-style timestamps, and
+Daylight Savings Time (DST) distortions.
 }
+\details{
+The function follows a hierarchical logic to identify and clean time data:
+\itemize{
+\item \strong{Column Discovery}: Searches for columns matching common time keywords
+(e.g., "fecha", "hora", "timestamp"). If multiple exist, it prioritizes
+\code{POSIXct} classes or columns with the most unique values.
+\item \strong{Numeric Parsing}: Converts Excel-origin numeric dates (origin "1899-12-30")
+by converting them to UTC and then reapplying the local timezone to avoid
+DST "spring forward" or "fall back" gaps.
+\item \strong{String Parsing}: Attempts multiple ISO and European date-time
+formats (\code{DD/MM/YYYY}, \code{YYYY/MM/DD}, \code{DD-MM-YYYY}).
+\item \strong{Rounding}: All timestamps are rounded to the nearest minute to
+align sensor readings that may be seconds apart.
+}
+}
+\section{Quality Control Metrics}{
+
+The function doesn't just return time; it evaluates data integrity:
+\itemize{
+\item \strong{Gaps}: Identifies periods where the recording interval exceeds 30 minutes.
+\item \strong{Duplicates}: Checks for multiple readings at the exact same minute.
+\item \strong{Sequentiality}: Detects "time travel" errors where a timestamp is
+earlier than the preceding one (often caused by manual clock resets).
+}
+}
+

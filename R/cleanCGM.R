@@ -45,6 +45,9 @@
 #'   \item \code{quality_check_visualization.pdf}: Visual plots for overlapping sensor sessions.
 #' }
 #'
+#' @importFrom grDevices dev.off pdf
+#' @importFrom graphics legend lines par
+#' @importFrom utils write.csv
 #' @export
 cleanCGM = function(datadir = NULL, outputdir = NULL,
                     timeCol = NULL, glucCol = NULL, typeCol = NULL,

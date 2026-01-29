@@ -2,7 +2,7 @@
 % Please edit documentation in R/cleanCGM.R
 \name{cleanCGM}
 \alias{cleanCGM}
-\title{Full Pipeline to Read Data and Extract Variables}
+\title{Full Pipeline for CGM Data Cleaning and Preprocessing}
 \usage{
 cleanCGM(
   datadir = NULL,
@@ -15,23 +15,57 @@ cleanCGM(
 )
 }
 \arguments{
-\item{datadir}{Character. Path to directory containing the CGM files (accepts txt and xlsx formats).}
+\item{datadir}{Character. Path to the directory containing raw CGM files
+(supports \code{.txt} and \code{.xlsx}).}
 
-\item{outputdir}{Character. Path to directory to save output (time series files).}
+\item{outputdir}{Character. Path where processed data and reports will be stored.}
 
-\item{timeCol}{Character. Name of the column with timestamp information (accepts numeric or character).}
+\item{timeCol}{Character. Name of the column containing timestamps.
+If NULL, the function attempts to find it automatically.}
 
-\item{glucCol}{Character. Name of the column with the glucose information.}
+\item{glucCol}{Character. Name of the column containing glucose values.}
 
-\item{typeCol}{Character. Name of the column with the type of registry information (usually scan or measure).}
+\item{typeCol}{Character. Name of the column distinguishing between
+"scans" (manual checks) and "historic/time series" (automatic measures).}
 
-\item{suffix}{Character. Suffix to be added to the filename of the output file to be saved.}
+\item{suffix}{Character. Optional string to append to output filenames
+(e.g., "_v1").}
 
-\item{verbose}{Logical. Whether to print progress messages in the console.}
+\item{verbose}{Logical. If \code{TRUE}, prints processing progress and
+identified IDs to the console.}
 }
 \value{
-Does not return any object, it saves time series files in the output folder.
+No object is returned to the R environment. The function writes:
+\itemize{
+\item \code{/scans/}: RData files containing manual scan data.
+\item \code{/time series/}: RData files containing automated sensor readings.
+\item \code{quality_checks.csv}: A summary of data integrity per subject.
+\item \code{quality_check_visualization.pdf}: Visual plots for overlapping sensor sessions.
+}
 }
 \description{
-Full Pipeline to Read Data and Extract Variables
+\code{cleanCGM} is the core function of the package. It automates the process of
+reading raw Continuous Glucose Monitoring (CGM) files, identifying subjects
+via filenames, resolving overlaps between multiple sensor sessions, and
+performing quality control checks.
 }
+\details{
+The function expects filenames to follow a specific pattern where the ID is
+the second element when split by underscores (e.g., \code{STUDY_ID123_EXTREME.xlsx}).
+If the second element is not numeric or doesn't match specific project codes
+(ASP, MG, NF, NVS), it defaults to the first element.
+}
+\section{Process Workflow}{
+
+\enumerate{
+\item \strong{ID Extraction}: Parsed from filenames.
+\item \strong{Reading}: Imports data using \code{readCGM}.
+\item \strong{Validation}: Skips subjects with fewer than 10 recordings.
+\item \strong{Overlap Resolution}: If a participant has multiple files, the function
+identifies time overlaps and prioritizes newer data or sequential merges.
+\item \strong{Quality Control}: Generates a CSV summarizing gaps, duplicates, and overlaps.
+\item \strong{Visualization}: If multiple files per ID exist, a PDF is generated to
+visualize the merging logic.
+}
+}
+
