@@ -114,6 +114,32 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
     QC$n_files[i] = nfiles
     # 1 - read CGM file/s
     data = as.data.frame(readCGM(files = files2read))
+
+    # Time column discovery
+    if (is.null(timeCol)) {
+      time_patterns = "time|tiempo|date|fecha|hora|temporal"
+      timeCol = grep(time_patterns, colnames(data),
+                     ignore.case = TRUE, value = TRUE)
+
+      if (length(timeCol) > 1) {
+        # Use vectorized sapply to check classes
+        classes = sapply(data[, timeCol, drop = FALSE], function(x) class(x)[1])
+        if (any(classes == "POSIXct")) {
+          timeCol = timeCol[which(classes == "POSIXct")[1]]
+        } else {
+          # Fallback to the column with most unique entries
+          unique_counts = sapply(data[, timeCol, drop = FALSE],
+                                 function(x) length(unique(x)))
+          timeCol = timeCol[which.max(unique_counts)]
+        }
+      }
+    }
+
+    # Remove rows where time is missing or empty
+    valid_rows = !is.na(data[[timeCol]]) & trimws(as.character(data[[timeCol]])) != ""
+    data = data[valid_rows, ]
+
+    # flag very short files
     if (nrow(data) < 10) {
       cat("skipped because insufficient data collected")
       QC$less_than_10recordings[i] = TRUE
