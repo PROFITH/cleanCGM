@@ -89,7 +89,7 @@ formatGlucose = function(data, glucCol = NULL) {
       }
     }
     # impute missing values if needed
-    toImpute = grep("Nivel bajo", glucose)
+    toImpute = grep("bajo|low|faible", glucose, ignore.case = TRUE)
     glucose[toImpute] = NA
     glucose = as.numeric(glucose)
     glucose = data.table::nafill(glucose, "locf")
