@@ -1,7 +1,7 @@
 Package: cleanCGM
 Type: Package
 Title: Clean CGM Signal
-Version: 1.0.0
+Version: 1.0.1
 Author: Jairo H. Migueles <jairo@jhmigueles.com>
 Maintainer: Jairo H. Migueles <jairo@jhmigueles.com>
 Description: Set of functions to clean CGM signal as collected in the 

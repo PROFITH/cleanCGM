@@ -70,11 +70,23 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
 
   # extract IDs from filenames
   IDs = data.frame(filename = FILES, id = NA)
+
   for (i in 1:length(FILES)) {
-    id_unlist = unlist(strsplit(basename(FILES[i]), split = "_"))
-    id = id_unlist[2]
-    if (suppressWarnings(is.na(as.numeric(id))) &
-        !grepl("ASP|MG|NF|NVS", id)) id = id_unlist[1]
+    # Split by underscore (_) OR hyphen (-)
+    # [_-] is a regex character class for both symbols
+    id_parts = unlist(strsplit(basename(FILES[i]), split = "[_-]"))
+
+    # Find the first part that contains at least one number
+    # This handles "ID", "NP", or "EWR" prefixes automatically
+    numeric_index = which(grepl("[0-9]", id_parts))[1]
+
+    # Default to part 1 if no number is found, otherwise take the identified ID
+    if (!is.na(numeric_index)) {
+      id = id_parts[numeric_index]
+    } else {
+      id = id_parts[1]
+    }
+
     IDs[i, 2] = id
   }
   ids = unique(IDs$id)

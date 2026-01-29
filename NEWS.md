@@ -1,3 +1,7 @@
+# cleanCGM 1.1.0
+
+* **Flexible ID Extraction**: Refactored the filename parsing logic to support diverse study prefixes (e.g., "NP-001", "EWR-001"). The package now splits filenames by both underscores (`_`) and hyphens (`-`) and automatically identifies the first numeric component as the Subject ID.
+
 # cleanCGM 1.0.0
 
 This is the first stable release of `cleanCGM`, representing a significant 
