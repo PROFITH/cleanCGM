@@ -1,16 +1,51 @@
-#' Full Pipeline to Read Data and Extract Variables
+#' Full Pipeline for CGM Data Cleaning and Preprocessing
 #'
-#' @param datadir Character. Path to directory containing the CGM files (accepts txt and xlsx formats).
-#' @param outputdir Character. Path to directory to save output (time series files).
-#' @param timeCol Character. Name of the column with timestamp information (accepts numeric or character).
-#' @param glucCol Character. Name of the column with the glucose information.
-#' @param typeCol Character. Name of the column with the type of registry information (usually scan or measure).
-#' @param verbose Logical. Whether to print progress messages in the console.
-#' @param suffix Character. Suffix to be added to the filename of the output file to be saved.
+#' @description
+#' `cleanCGM` is the core function of the package. It automates the process of
+#' reading raw Continuous Glucose Monitoring (CGM) files, identifying subjects
+#' via filenames, resolving overlaps between multiple sensor sessions, and
+#' performing quality control checks.
 #'
-#' @return Does not return any object, it saves time series files in the output folder.
+#' @details
+#' The function expects filenames to follow a specific pattern where the ID is
+#' the second element when split by underscores (e.g., `STUDY_ID123_EXTREME.xlsx`).
+#' If the second element is not numeric or doesn't match specific project codes
+#' (ASP, MG, NF, NVS), it defaults to the first element.
+#'
+#'
+#'
+#' @param datadir Character. Path to the directory containing raw CGM files
+#' (supports `.txt` and `.xlsx`).
+#' @param outputdir Character. Path where processed data and reports will be stored.
+#' @param timeCol Character. Name of the column containing timestamps.
+#' If NULL, the function attempts to find it automatically.
+#' @param glucCol Character. Name of the column containing glucose values.
+#' @param typeCol Character. Name of the column distinguishing between
+#' "scans" (manual checks) and "historic/time series" (automatic measures).
+#' @param suffix Character. Optional string to append to output filenames
+#' (e.g., "_v1").
+#' @param verbose Logical. If `TRUE`, prints processing progress and
+#' identified IDs to the console.
+#'
+#' @section Process Workflow:
+#' 1. **ID Extraction**: Parsed from filenames.
+#' 2. **Reading**: Imports data using `readCGM`.
+#' 3. **Validation**: Skips subjects with fewer than 10 recordings.
+#' 4. **Overlap Resolution**: If a participant has multiple files, the function
+#' identifies time overlaps and prioritizes newer data or sequential merges.
+#' 5. **Quality Control**: Generates a CSV summarizing gaps, duplicates, and overlaps.
+#' 6. **Visualization**: If multiple files per ID exist, a PDF is generated to
+#' visualize the merging logic.
+#'
+#' @return No object is returned to the R environment. The function writes:
+#' \itemize{
+#'   \item \code{/scans/}: RData files containing manual scan data.
+#'   \item \code{/time series/}: RData files containing automated sensor readings.
+#'   \item \code{quality_checks.csv}: A summary of data integrity per subject.
+#'   \item \code{quality_check_visualization.pdf}: Visual plots for overlapping sensor sessions.
+#' }
+#'
 #' @export
-#'
 cleanCGM = function(datadir = NULL, outputdir = NULL,
                     timeCol = NULL, glucCol = NULL, typeCol = NULL,
                     suffix = "",

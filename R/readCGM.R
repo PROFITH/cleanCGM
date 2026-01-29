@@ -1,12 +1,50 @@
-#' Reads file with CGM data either in .txt or .xlsx format
+#' Read and Consolidate Multiple CGM Data Files
 #'
-#' @param file Character. Path to file with CGM data (accepts txt and xlsx formats).
+#' @description
+#' `readCGM` imports Continuous Glucose Monitoring data from various file
+#' formats (.txt, .xlsx, .csv). It handles multi-file imports for a single
+#' subject, automatically ordering them chronologically and assigning session
+#' identifiers.
 #'
-#' @return Data frame with CGM data.
-#' @export
+#' @details
+#' The function includes sophisticated error-handling for specific sensor export
+#' bugs:
+#' \itemize{
+#'   \item **Column Repair**: For `.txt` files, it detects if glucose values and
+#'   timestamps have shifted into the wrong columns (a common artifact in some
+#'   FreeStyle Libre exports) and realigns them.
+#'   \item **Excel Compatibility**: Automatically skips metadata headers in
+#'   `.xlsx` files by starting the read at row 3.
+#'   \item **Chronological Merging**: If multiple files are provided, the
+#'   function parses the first timestamp of each, sorts them, and assigns a
+#'   `file_nr` attribute to track the session sequence.
+#' }
+#'
+#'
+#'
+#' @param files Character vector. Path(s) to the CGM files. If multiple files
+#' are provided, they are assumed to belong to the same subject and will be
+#' merged.
+#'
+#' @section Data Cleaning Steps:
+#' \itemize{
+#'   \item **NA Removal**: Automatically drops rows with missing IDs.
+#'   \item **Name Cleaning**: Standardizes column names by replacing dots (`.`)
+#'   with spaces to maintain consistency across different file formats.
+#'   \item **Timestamp Standardization**: In cases of malformed rows, it
+#'   re-formats dates to `%d/%m/%Y %H:%M`.
+#' }
+#'
+#' @return A combined data frame containing the data from all input files,
+#' with two additional columns:
+#' \itemize{
+#'   \item \code{file_nr}: Integer indicating the chronological order of the file.
+#'   \item \code{filename}: The name of the source file for that specific row.
+#' }
 #'
 #' @importFrom openxlsx read.xlsx
 #' @importFrom data.table fread
+#' @export
 readCGM = function(files) {
 
   # loop through files to load data -------
