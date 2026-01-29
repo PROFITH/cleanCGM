@@ -105,6 +105,7 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
                   n_gaps_over_30min = 0,
                   duplicated_timestamps = FALSE,
                   no_sequential_timestamps = FALSE)
+  detect_timecol = ifelse(is.null(timeCol), TRUE, FALSE)
   for (i in 1:length(ids)) {
     id = ids[i]
     if (verbose) cat(id, " ")
@@ -116,7 +117,7 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
     data = as.data.frame(readCGM(files = files2read))
 
     # Time column discovery
-    if (is.null(timeCol)) {
+    if (detect_timecol) {
       time_patterns = "time|tiempo|date|fecha|hora|temporal"
       timeCol = grep(time_patterns, colnames(data),
                      ignore.case = TRUE, value = TRUE)
