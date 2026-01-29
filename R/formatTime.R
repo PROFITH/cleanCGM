@@ -77,7 +77,20 @@ formatTime = function(data, timeCol = NULL, ts_indices = NULL, scan_indices = NU
       }
     }
   }
+
+  # Clean Input
+  # Remove rows where the time column is completely empty or NA
+  # This prevents trailing empty lines from breaking diff() calculations
+  valid_rows = !is.na(data[[timeCol]]) & data[[timeCol]] != ""
+  data = data[valid_rows, ]
+
+  # update indices in the case that data has been cleaned
+  if (!is.null(ts_indices)) ts_indices = intersect(ts_indices, which(valid_rows))
+  if (!is.null(scan_indices)) scan_indices = intersect(scan_indices, which(valid_rows))
+
   raw_time = data[[timeCol]]
+
+
 
   # 2. --- Parsing ---
   if (is.numeric(raw_time)) {
@@ -85,11 +98,23 @@ formatTime = function(data, timeCol = NULL, ts_indices = NULL, scan_indices = NU
     ts_utc = as.POSIXct(raw_time * 86400, origin = "1899-12-30", tz = "UTC")
 
   } else if (is.character(raw_time)) {
-    # REFACTOR: Use lubridate for multi-format international support
-    # Handles DMY, YMD, and MDY automatically
-    ts_utc = lubridate::parse_date_time(raw_time,
-                                        orders = c("dmy HM", "ymd HM", "mdy HM", "dmy HMS"),
-                                        tz = "UTC")
+    # Initialize an empty POSIXct vector
+    ts_utc = as.POSIXct(rep(NA, length(raw_time)), tz = "UTC")
+
+    # Define the potential formats found in CGM exports
+    # We parse them separately to prevent 'bleeding' between formats
+    possible_orders = c("ymd HM", "dmy HM", "ymd HMS", "dmy HMS")
+
+    # Iterate through orders and fill ONLY the NAs
+    # This ensures that once a row is correctly parsed, it isn't overwritten
+    for (ord in possible_orders) {
+      nas = is.na(ts_utc)
+      if (!any(nas)) break
+
+      # Attempt to parse only the remaining NA slots
+      attempt = lubridate::parse_date_time(raw_time[nas], orders = ord, tz = "UTC", quiet = TRUE)
+      ts_utc[nas] = attempt
+    }
 
     if (all(is.na(ts_utc))) stop("Could not parse date format. Check timeCol.")
 
@@ -124,9 +149,9 @@ formatTime = function(data, timeCol = NULL, ts_indices = NULL, scan_indices = NU
 
   # quality checks (only in time series indices)
   time_increments = as.numeric(diff(timestamp[ts_indices], units = "mins"))
-  if (any(time_increments > 30)) n_gaps_over_30min = sum(time_increments > 30)
+  if (any(time_increments > 30, na.rm = TRUE)) n_gaps_over_30min = sum(time_increments > 30, na.rm = TRUE)
   if (any(duplicated(timestamp[ts_indices]))) duplicated_timestamps = TRUE
-  if (any(time_increments < 0)) no_sequential_timestamps = TRUE
+  if (any(time_increments < 0, na.rm = TRUE)) no_sequential_timestamps = TRUE
 
   # return
   return(list(
