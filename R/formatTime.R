@@ -78,19 +78,7 @@ formatTime = function(data, timeCol = NULL, ts_indices = NULL, scan_indices = NU
     }
   }
 
-  # Clean Input
-  # Remove rows where the time column is completely empty or NA
-  # This prevents trailing empty lines from breaking diff() calculations
-  valid_rows = !is.na(data[[timeCol]]) & data[[timeCol]] != ""
-  data = data[valid_rows, ]
-
-  # update indices in the case that data has been cleaned
-  if (!is.null(ts_indices)) ts_indices = intersect(ts_indices, which(valid_rows))
-  if (!is.null(scan_indices)) scan_indices = intersect(scan_indices, which(valid_rows))
-
   raw_time = data[[timeCol]]
-
-
 
   # 2. --- Parsing ---
   if (is.numeric(raw_time)) {

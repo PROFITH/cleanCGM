@@ -114,6 +114,10 @@ cleanCGM = function(datadir = NULL, outputdir = NULL,
     QC$n_files[i] = nfiles
     # 1 - read CGM file/s
     data = as.data.frame(readCGM(files = files2read))
+
+    # Identify rows where time is missing or empty
+    valid_rows = !is.na(data[[timeCol]]) & trimws(as.character(data[[timeCol]])) != ""
+    data = data[valid_rows, ]
     if (nrow(data) < 10) {
       cat("skipped because insufficient data collected")
       QC$less_than_10recordings[i] = TRUE
